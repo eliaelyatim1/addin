@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Signature Add-in</title>
+
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        button {
+            padding: 10px 14px;
+            background: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1557b0;
+        }
+    </style>
+</head>
+
+<body>
+
+<h3>Signature Add-in</h3>
+
+<button onclick="insertSignature()">Insert Signature</button>
+
+<script>
+function insertSignature() {
+
+    Office.onReady(() => {
+
+        const signature = `
+<table cellspacing="0" cellpadding="0">
+<tr>
+
+<!-- LOGO -->
+<td style="vertical-align:top; padding-right:10px; border-right:2px solid black;">
+<img 
+    src="data:image/png;base64,PASTE_YOUR_BASE64_HERE"
+    style="height:120px; display:block;">
+</td>
+
+<!-- TEXT -->
+<td style="font-family:'Arial', sans-serif; padding-left:10px; line-height:1.4;">
+
+<span style="font-size:17px; font-weight:bold;">
+%%DisplayName%%
+</span><br>
+
+<span style="font-size:15px; font-weight:bold;">
+%%Title%%
+</span><br>
+
+<span style="font-size:13px;">
+%%Office%%
+</span><br>
+
+<span style="font-size:13px;">
+%%Department%%
+</span><br>
+
+<span style="font-size:13px;">
+%%Email%%
+</span>
+
+<!-- INSTAGRAM -->
+<div style="margin-top:6px;">
+<a href="https://www.instagram.com/work_at_tevel_?igsh=b3Q3czg1cGg4b2R3" target="_blank">
+<img 
+    src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTeL1mIqwsERJLEousCx5T1dOxhjxtze3Kq6Q&s"
+    width="20"
+    style="display:block;">
+</a>
+</div>
+
+</td>
+
+</tr>
+</table>
+`;
+
+        Office.context.mailbox.item.body.setSelectedDataAsync(
+            signature,
+            { coercionType: Office.CoercionType.Html }
+        );
+
+    });
+}
+</script>
+
+</body>
+</html>
