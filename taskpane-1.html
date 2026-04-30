@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+</head>
+<body>
+
+  <button onclick="insertSignature()">הכנס חתימה</button>
+
+  <script>
+    Office.onReady(function() {
+      // האדאין נטען - אפשר להכניס חתימה אוטומטית כאן
+      insertSignature();
+    });
+
+    function insertSignature() {
+      const signature = `
+        <table style="font-family: Arial; font-size: 13px; color: #333;">
+          <tr>
+            <td>
+              <strong>ישראל ישראלי</strong><br>
+              מנהל מכירות | חברה בע"מ<br>
+              📞 050-0000000<br>
+              ✉️ israel@company.co.il
+            </td>
+          </tr>
+        </table>
+      `;
+
+      Office.context.mailbox.item.body.setSignatureAsync(
+        signature,
+        { coercionType: Office.CoercionType.Html },
+        function(result) {
+          if (result.status === Office.AsyncResultStatus.Succeeded) {
+            console.log("חתימה הוכנסה בהצלחה");
+          }
+        }
+      );
+    }
+  </script>
+
+</body>
+</html>
