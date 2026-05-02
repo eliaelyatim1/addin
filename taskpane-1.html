@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Signature Add-in</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 16px; background: #f9f9f9; }
+        button {
+            padding: 10px 16px;
+            background: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            width: 100%;
+        }
+        button:hover { background: #1557b0; }
+        #status { margin-top: 10px; font-size: 13px; color: #555; text-align: center; }
+        #error  { margin-top: 10px; font-size: 12px; color: #c00; text-align: center; }
+    </style>
+</head>
+<body>
+
+<button onclick="insertSignature()">הכנס חתימה</button>
+<div id="status"></div>
+<div id="error"></div>
+
+<script>
+// =============================================
+// הגדרות
+// =============================================
+const LOGO_URL   = "https://eliaelyatim1.github.io/addin/logo.png";
+const INSTA_URL  = "https://eliaelyatim1.github.io/addin/ins.png";
+const INSTA_LINK = "https://www.instagram.com/work_at_tevel_";
+
+Office.onReady(function() {
+    insertSignature();
+});
+
+async function insertSignature() {
+    const status = document.getElementById("status");
+    const error  = document.getElementById("error");
+    status.textContent = "טוען פרטי משתמש...";
+    error.textContent  = "";
+
+    try {
+        // SSO - שולף Token ישירות מ-Office בלי login
+        const token = await getAccessToken();
+        const user  = await fetchUser(token);
+        const sig   = buildSignature(user);
+        await insertToEmail(sig);
+        status.textContent = "✅ החתימה הוכנסה בהצלחה";
+    } catch (err) {
+        error.textContent  = "שגיאה: " + err.message;
+        status.textContent = "";
+        console.error(err);
+    }
+}
+
+// =============================================
+// SSO - קבל Token ישירות מ-Office
+// =============================================
+function getAccessToken() {
+    return new Promise((resolve, reject) => {
+        Office.context.auth.getAccessTokenAsync(
+            { allowSignInPrompt: false, allowConsentPrompt: false },
+            async function(result) {
+                if (result.status === Office.AsyncResultStatus.Succeeded) {
+                    // Token מ-Office — צריך להחליף ב-Graph Token
+                    try {
+                        const graphToken = await exchangeToken(result.value);
+                        resolve(graphToken);
+                    } catch (e) {
+                        reject(e);
+                    }
+                } else {
+                    reject(new Error("SSO נכשל: " + result.error.message));
+                }
+            }
+        );
+    });
+}
+
+// =============================================
+// החלף Office Token ב-Graph Token (OBO Flow)
+// =============================================
+async function exchangeToken(officeToken) {
+    const tenantId = "7a913d1c-9ea9-4a2a-b72a-4e9efd358b45";
+    const clientId = "d3a8ea6d-6deb-402c-9d80-f131c327fed9";
+
+    const res = await fetch(
+        `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+                grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                client_id: clientId,
+                assertion: officeToken,
+                scope: "https://graph.microsoft.com/User.Read",
+                requested_token_use: "on_behalf_of"
+            })
+        }
+    );
+
+    if (!res.ok) {
+        const err = await res.json();
+        throw new Error("שגיאה בהחלפת Token: " + (err.error_description || err.error));
+    }
+
+    const data = await res.json();
+    return data.access_token;
+}
+
+// =============================================
+// שלוף פרטים מ-Graph API
+// =============================================
+async function fetchUser(token) {
+    const res = await fetch(
+        "https://graph.microsoft.com/v1.0/me?$select=displayName,jobTitle,mail,mobilePhone,officeLocation",
+        { headers: { Authorization: "Bearer " + token } }
+    );
+    if (!res.ok) throw new Error("שגיאה בשליפת נתוני משתמש");
+    return await res.json();
+}
+
+// =============================================
+// בנה HTML של החתימה
+// =============================================
+function buildSignature(user) {
+    const name   = user.displayName    || "";
+    const title  = user.jobTitle       || "";
+    const email  = user.mail           || "";
+    const phone  = user.mobilePhone    || "";
+    const office = user.officeLocation || "";
+
+    return `
+<table cellspacing="0" cellpadding="0" style="font-family:Arial,sans-serif;">
+  <tr>
+    <td style="vertical-align:top; padding-right:12px; border-right:2px solid #000;">
+      <img src="https://eliaelyatim1.github.io/addin/icon-64.png" style="height:80px; display:block;">
+    </td>
+    <td style="vertical-align:top; padding-left:12px; line-height:1.6;">
+      <span style="font-size:16px; font-weight:bold; color:#000;">${name}</span><br>
+      ${title  ? `<span style="font-size:14px; font-weight:bold; color:#333;">${title}</span><br>` : ""}
+      <span style="font-size:13px; color:#444;">Tevel Metro | Egged Group</span><br>
+      ${office ? `<span style="font-size:13px; color:#444;">${office}</span><br>` : ""}
+      ${email  ? `<span style="font-size:13px; color:#444;">${email}</span><br>` : ""}
+      ${phone  ? `<span style="font-size:13px; color:#444;">${phone}</span><br>` : ""}
+      <div style="margin-top:6px;">
+        <a href="${INSTA_LINK}" target="_blank">
+          <img src="https://eliaelyatim1.github.io/addin/ins.png" width="22" style="display:block;">
+        </a>
+      </div>
+    </td>
+  </tr>
+</table>`;
+}
+
+// =============================================
+// הכנס לגוף המייל
+// =============================================
+function insertToEmail(signature) {
+    return new Promise((resolve, reject) => {
+        Office.context.mailbox.item.body.setSignatureAsync(
+            signature,
+            { coercionType: Office.CoercionType.Html },
+            function(result) {
+                if (result.status === Office.AsyncResultStatus.Succeeded) {
+                    resolve();
+                } else {
+                    Office.context.mailbox.item.body.setSelectedDataAsync(
+                        signature,
+                        { coercionType: Office.CoercionType.Html },
+                        function(r) {
+                            if (r.status === Office.AsyncResultStatus.Succeeded) resolve();
+                            else reject(new Error("לא ניתן להכניס חתימה"));
+                        }
+                    );
+                }
+            }
+        );
+    });
+}
+</script>
+</body>
+</html>
