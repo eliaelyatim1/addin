@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Signature Add-in</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 16px;
+            background: #f9f9f9;
+        }
+        button {
+            padding: 10px 16px;
+            background: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            width: 100%;
+        }
+        button:hover { background: #1557b0; }
+        #status {
+            margin-top: 10px;
+            font-size: 13px;
+            color: #555;
+            text-align: center;
+        }
+        #error {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #c00;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<button onclick="insertSignature()">הכנס חתימה באנגלית</button>
+<div id="status"></div>
+<div id="error"></div>
+
+<script>
+// =============================================
+// קישורים לתמונות — עדכן כאן
+// =============================================
+const LOGO_URL = "https://eliaelyatim1.github.io/addin/icon-64.png";
+// לדוגמה: "https://eliaelyatim1.github.io/addin/logo.png"
+
+const INSTAGRAM_ICON_URL = "PASTE_YOUR_INSTAGRAM_ICON_URL_HERE";
+// לדוגמה: "https://eliaelyatim1.github.io/addin/instagram.png"
+
+Office.onReady(function() {
+    insertSignature();
+});
+
+async function insertSignature() {
+    const status = document.getElementById("status");
+    const error = document.getElementById("error");
+    status.textContent = "טוען פרטי משתמש...";
+    error.textContent = "";
+
+    try {
+        // שלב 1: קבל Access Token מ-Office
+        const token = await getAccessToken();
+
+        // שלב 2: שלוף פרטי משתמש מ-Microsoft Graph
+        const user = await fetchUserFromGraph(token);
+
+        // שלב 3: בנה והכנס את החתימה
+        const signature = buildSignature(user);
+        await insertToEmail(signature);
+
+        status.textContent = "✅ החתימה הוכנסה בהצלחה";
+    } catch (err) {
+        error.textContent = "שגיאה: " + err.message;
+        status.textContent = "";
+        console.error(err);
+    }
+}
+
+// =============================================
+// שלב 1: קבל Access Token
+// =============================================
+function getAccessToken() {
+    return new Promise((resolve, reject) => {
+        Office.context.auth.getAccessTokenAsync(
+            { allowSignInPrompt: true },
+            function(result) {
+                if (result.status === Office.AsyncResultStatus.Succeeded) {
+                    resolve(result.value);
+                } else {
+                    reject(new Error("לא ניתן לקבל Token: " + result.error.message));
+                }
+            }
+        );
+    });
+}
+
+// =============================================
+// שלב 2: שלוף פרטים מ-Graph API
+// =============================================
+async function fetchUserFromGraph(token) {
+    const response = await fetch(
+        "https://graph.microsoft.com/v1.0/me?$select=displayName,jobTitle,mail,mobilePhone,officeLocation",
+        {
+            headers: { Authorization: "Bearer " + token }
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error("שגיאה בשליפת נתוני משתמש מ-Graph API");
+    }
+
+    return await response.json();
+}
+
+// =============================================
+// שלב 3: בנה HTML של החתימה
+// =============================================
+function buildSignature(user) {
+    const name     = user.displayName    || "";
+    const title    = user.jobTitle       || "";
+    const email    = user.mail           || "";
+    const phone    = user.mobilePhone    || "";
+    const office   = user.officeLocation || "";
+
+    const logoHtml = LOGO_URL !== "PASTE_YOUR_LOGO_URL_HERE"
+        ? `<img src="${LOGO_URL}" style="height:80px; display:block;">`
+        : "";
+
+    const instaHtml = INSTAGRAM_ICON_URL !== "PASTE_YOUR_INSTAGRAM_ICON_URL_HERE"
+        ? INSTAGRAM_ICON_URL
+        : "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTeL1mIqwsERJLEousCx5T1dOxhjxtze3Kq6Q&s";
+
+    return `
+<table cellspacing="0" cellpadding="0" style="font-family:Arial, sans-serif;">
+  <tr>
+    ${logoHtml ? `
+    <td style="vertical-align:top; padding-right:12px; border-right:2px solid #000;">
+      ${logoHtml}
+    </td>` : ""}
+    <td style="vertical-align:top; padding-left:12px; line-height:1.5;">
+      <span style="font-size:16px; font-weight:bold; color:#000;">${name}</span><br>
+      ${title ? `<span style="font-size:14px; font-weight:bold; color:#333;">${title}</span><br>` : ""}
+      <span style="font-size:13px; color:#444;">Tevel Metro | Egged Group</span><br>
+      ${office ? `<span style="font-size:13px; color:#444;">${office}</span><br>` : ""}
+      ${email  ? `<span style="font-size:13px; color:#444;">${email}</span><br>` : ""}
+      ${phone  ? `<span style="font-size:13px; color:#444;">${phone}</span><br>` : ""}
+      <div style="margin-top:6px;">
+        <a href="https://www.instagram.com/work_at_tevel_" target="_blank">
+          <img src="https://eliaelyatim1.github.io/addin/ins.png"
+               width="20" style="display:block;">
+        </a>
+      </div>
+    </td>
+  </tr>
+</table>
+`;
+}
+
+// =============================================
+// שלב 4: הכנס לגוף המייל
+// =============================================
+function insertToEmail(signature) {
+    return new Promise((resolve, reject) => {
+        Office.context.mailbox.item.body.setSignatureAsync(
+            signature,
+            { coercionType: Office.CoercionType.Html },
+            function(result) {
+                if (result.status === Office.AsyncResultStatus.Succeeded) {
+                    resolve();
+                } else {
+                    // fallback אם setSignatureAsync לא נתמך
+                    Office.context.mailbox.item.body.setSelectedDataAsync(
+                        signature,
+                        { coercionType: Office.CoercionType.Html },
+                        function(r) {
+                            if (r.status === Office.AsyncResultStatus.Succeeded) resolve();
+                            else reject(new Error("לא ניתן להכניס חתימה"));
+                        }
+                    );
+                }
+            }
+        );
+    });
+}
+</script>
+</body>
+</html>
