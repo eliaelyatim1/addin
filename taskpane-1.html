@@ -68,7 +68,7 @@ async function insertSignature(lang) {
         const user  = await fetchUser(token);
         const sig   = lang === 'he' ? buildSignatureHe(user) : buildSignatureEn(user);
         await insertToEmail(sig);
-        status.textContent = lang === 'he' ? "✅ חתימה עברית הוכנסה בהצלחה" : "✅ English signature inserted";
+        status.textContent = lang === 'he' ? "✅ חתימה בעברית הוכנסה בהצלחה" : "✅ חתימה באנגלית הוכנסה בהצלחה";
     } catch (err) {
         error.textContent  = "שגיאה: " + err.message;
         status.textContent = "";
