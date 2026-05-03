@@ -54,7 +54,7 @@ const msalInstance = new msal.PublicClientApplication(msalConfig);
 const scopes = ["User.Read"];
 
 Office.onReady(function() {
-    // לא מכניס אוטומטית — ממתין ללחיצה
+    insertSignature('he');
 });
 
 async function insertSignature(lang) {
