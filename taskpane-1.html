@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Signature Add-in</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Assistant', Arial, sans-serif; padding: 16px; background: #f9f9f9; }
+        button {
+            padding: 10px 16px;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-family: 'Assistant', Arial, sans-serif;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+        .btn-en { background: #1a73e8; }
+        .btn-en:hover { background: #1557b0; }
+        .btn-he { background: #e84e1a; }
+        .btn-he:hover { background: #b03c11; }
+        .btn-close { background: #cc0000; }
+        .btn-close:hover { background: #990000; }
+        #status { margin-top: 10px; font-size: 13px; color: #555; text-align: center; }
+        #error  { margin-top: 10px; font-size: 12px; color: #c00; text-align: center; }
+        #credit { margin-top: 14px; font-size: 13px; color: #aaa; text-align: center; }
+    </style>
+</head>
+<body>
+<div style="text-align:center; margin-bottom:12px;">
+  <img src="https://eliaelyatim1.github.io/addin/logo1.png" height="65" style="height:65px; width:auto;">
+</div>
+
+<button class="btn-en" onclick="insertSignature('en')">חתימה באנגלית</button>
+<button class="btn-he" onclick="insertSignature('he')">חתימה בעברית</button>
+<button class="btn-close" onclick="Office.context.ui.closeContainer()">סגור</button>
+<div id="status"></div>
+<div id="error"></div>
+<div id="credit">Developed by Elia Elyatim</div>
+
+<script>
+const CLIENT_ID    = "d3a8ea6d-6deb-402c-9d80-f131c327fed9";
+const TENANT_ID    = "7a913d1c-9ea9-4a2a-b72a-4e9efd358b45";
+const LOGO_EN_URL  = "https://eliaelyatim1.github.io/addin/logo.png";
+const LOGO_HE_URL  = "https://eliaelyatim1.github.io/addin/logoHE.png";
+const INSTA_URL    = "https://eliaelyatim1.github.io/addin/ins.png";
+const INSTA_LINK   = "https://www.instagram.com/work_at_tevel_";
+
+const msalConfig = {
+    auth: {
+        clientId: CLIENT_ID,
+        authority: `https://login.microsoftonline.com/${TENANT_ID}`,
+        redirectUri: "https://eliaelyatim1.github.io/addin/taskpane-1.html"
+    },
+    cache: { cacheLocation: "sessionStorage" }
+};
+
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+const scopes = ["User.Read"];
+
+Office.onReady(function() {
+    insertSignature('he');
+});
+
+async function insertSignature(lang) {
+    const status = document.getElementById("status");
+    const error  = document.getElementById("error");
+    status.textContent = "טוען פרטי משתמש...";
+    error.textContent  = "";
+
+    try {
+        const token = await getToken();
+        const user  = await fetchUser(token);
+        const sig   = lang === 'he' ? buildSignatureHe(user) : buildSignatureEn(user);
+        await insertToEmail(sig);
+        status.textContent = lang === 'he' ? "✅ חתימה בעברית הוכנסה בהצלחה" : "✅ חתימה באנגלית הוכנסה בהצלחה";
+    } catch (err) {
+        error.textContent  = "שגיאה: " + err.message;
+        status.textContent = "";
+        console.error(err);
+    }
+}
+
+async function getToken() {
+    await msalInstance.initialize();
+
+    // שלוף את המייל של המשתמש הנוכחי מ-Outlook
+    const currentEmail = Office.context.mailbox.userProfile.emailAddress;
+
+    const accounts = msalInstance.getAllAccounts();
+
+    // חפש חשבון מתאים לפי מייל
+    const matchingAccount = accounts.find(a =>
+        a.username.toLowerCase() === currentEmail.toLowerCase()
+    );
+
+    if (matchingAccount) {
+        try {
+            const result = await msalInstance.acquireTokenSilent({
+                scopes,
+                account: matchingAccount
+            });
+            return result.accessToken;
+        } catch (e) {}
+    }
+
+    // Popup עם hint למייל הנכון — לא ישאל על איזה חשבון
+    const result = await msalInstance.acquireTokenPopup({
+        scopes,
+        loginHint: currentEmail
+    });
+    return result.accessToken;
+}
+
+async function fetchUser(token) {
+    const res = await fetch(
+        "https://graph.microsoft.com/v1.0/me?$select=displayName,jobTitle,mail,mobilePhone,officeLocation,city",
+        { headers: { Authorization: "Bearer " + token } }
+    );
+    if (!res.ok) throw new Error("שגיאה בשליפת נתוני משתמש");
+    return await res.json();
+}
+
+// =============================================
+// חתימה באנגלית
+// =============================================
+function buildSignatureEn(user) {
+    const name  = user.displayName || "";
+    const title = user.jobTitle    || "";
+    const email = user.mail        || "";
+    const phone = user.mobilePhone || "";
+
+    return `
+<table cellspacing="0" cellpadding="0" style="font-family:'Assistant',Arial,sans-serif;">
+  <tr>
+    <td valign="middle" style="padding-right:12px; border-right:2px solid #000;">
+      <img src="${LOGO_EN_URL}" width="100" height="120" style="width:100px; height:120px; display:block; border:0;">
+    </td>
+    <td valign="top" style="padding-left:12px; line-height:1.6;">
+      <span style="font-size:16px; font-weight:bold; color:#000;">${name}</span><br>
+      ${title ? `<span style="font-size:14px; font-weight:bold; color:#333;">${title}</span><br>` : ""}
+      <span style="font-size:13px; color:#444;">Tevel Metro </span><span style="font-size:13px; color:#ff0000;">|</span><span style="font-size:13px; color:#444;"> Egged Group</span><br>
+      ${email ? `<span style="font-size:13px; color:#333;">${email}</span><br>` : ""}
+      ${phone ? `<span style="font-size:13px; color:#333;">${phone}</span><br>` : ""}
+      <table cellspacing="0" cellpadding="0" style="margin-top:4px;">
+        <tr>
+          <td style="padding-right:4px;"><a href="https://www.tevelmetro.co.il" target="_blank"><img src="https://eliaelyatim1.github.io/addin/tvl.png" width="26" style="display:block; border:0;"></a></td>
+          <td style="padding-right:4px;"><a href="https://www.egged.co.il/" target="_blank"><img src="https://eliaelyatim1.github.io/addin/egged.png" width="28" style="display:block; border:0;"></a></td>
+          <td style="padding-right:4px;"><a href="https://www.dankal.co.il/" target="_blank"><img src="https://eliaelyatim1.github.io/addin/dan.png" width="28" style="display:block; border:0;"></a></td>
+          <td style="padding-right:4px;"><a href="https://www.linkedin.com/company/tevel-metro/" target="_blank"><img src="https://eliaelyatim1.github.io/addin/link.png" width="28" style="display:block; border:0;"></a></td>
+          <td><a href="${INSTA_LINK}" target="_blank"><img src="${INSTA_URL}" width="28" style="display:block; border:0;"></a></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>`;
+}
+
+// =============================================
+// חתימה בעברית
+// =============================================
+function buildSignatureHe(user) {
+    const name  = user.city           || "";
+    const title = user.officeLocation || "";
+    const email = user.mail           || "";
+    const phone = user.mobilePhone    || "";
+
+    return `
+<table cellspacing="0" cellpadding="0" dir="rtl" style="font-family:'Assistant',Arial,sans-serif; text-align:right;">
+  <tr>
+    <td valign="middle" style="padding-left:12px; border-left:2px solid #000; text-align:right;">
+      <img src="${LOGO_HE_URL}" width="100" height="138" style="width:100px; height:138px; display:block; border:0;">
+    </td>
+    <td valign="top" style="padding-right:12px; line-height:1.6; text-align:right;" dir="rtl">
+      <span style="font-size:16px; font-weight:bold; color:#000;">${name}</span><br>
+      ${title ? `<span style="font-size:14px; font-weight:bold; color:#333;">${title}</span><br>` : ""}
+      <span style="font-size:13px; color:#444;">תבל מטרו מקבוצת אגד</span><br>
+      ${email ? `<span style="font-size:13px; color:#333;">${email}</span><br>` : ""}
+      ${phone ? `<span style="font-size:13px; color:#333;">&#x202A;${phone}&#x202C;</span>` : ""}
+      <table cellspacing="0" cellpadding="0" style="margin-top:4px;">
+        <tr>
+          <td><a href="https://www.tevelmetro.co.il" target="_blank"><img src="https://eliaelyatim1.github.io/addin/tvl.png" width="26" style="display:block; border:0;"></a></td>
+          <td style="padding-left:4px;"><a href="https://www.egged.co.il/" target="_blank"><img src="https://eliaelyatim1.github.io/addin/egged.png" width="28" style="display:block; border:0;"></a></td>
+          <td style="padding-left:4px;"><a href="https://www.dankal.co.il/" target="_blank"><img src="https://eliaelyatim1.github.io/addin/dan.png" width="28" style="display:block; border:0;"></a></td>
+          <td style="padding-left:4px;"><a href="https://www.linkedin.com/company/tevel-metro/" target="_blank"><img src="https://eliaelyatim1.github.io/addin/link.png" width="28" style="display:block; border:0;"></a></td>
+          <td style="padding-left:4px;"><a href="${INSTA_LINK}" target="_blank"><img src="${INSTA_URL}" width="28" style="display:block; border:0;"></a></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>`;
+}
+
+// =============================================
+// הכנס לגוף המייל
+// =============================================
+function insertToEmail(signature) {
+    return new Promise((resolve, reject) => {
+        Office.context.mailbox.item.body.setSignatureAsync(
+            signature,
+            { coercionType: Office.CoercionType.Html },
+            function(result) {
+                if (result.status === Office.AsyncResultStatus.Succeeded) {
+                    resolve();
+                } else {
+                    Office.context.mailbox.item.body.setSelectedDataAsync(
+                        signature,
+                        { coercionType: Office.CoercionType.Html },
+                        function(r) {
+                            if (r.status === Office.AsyncResultStatus.Succeeded) resolve();
+                            else reject(new Error("לא ניתן להכניס חתימה"));
+                        }
+                    );
+                }
+            }
+        );
+    });
+}
+</script>
+</body>
+</html>
