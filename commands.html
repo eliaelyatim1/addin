@@ -19,7 +19,7 @@ const msalConfig = {
         authority: `https://login.microsoftonline.com/${TENANT_ID}`,
         redirectUri: "https://eliaelyatim1.github.io/addin/taskpane-1.html"
     },
-    cache: { cacheLocation: "sessionStorage" }
+    cache: { cacheLocation: "localStorage" }
 };
 
 Office.onReady(function() {});
